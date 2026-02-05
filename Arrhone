@@ -1,0 +1,74 @@
+
+version: '3.8'
+services:
+  btc-rpc-explorer:
+    build: .
+    container_name: btc-rpc-explorer
+    ports:
+      - "3002:3002"
+    environment:
+      - BTCEXP_BITCOIND_HOST=bitcoind
+      - BTCEXP_BITCOIND_PORT=8332
+      - BTCEXP_BITCOIND_USER=bitcoin
+      - BTCEXP_BITCOIND_PASS=${BITCOIND_RPC_PASSWORD:-changeme}
+      - BTCEXP_DONATION_ADDRESS=bc1p72l39k72kq9pmy4a474x0vvsdsaru66ffqmc4lc2dlz8dl9sq30sjh4qnp
+      - BTCEXP_ROUTING_FEE_ADDRESS=bc1pgcm728uy2ywnt65fdlqvgt4r6lqr3s7lth4ulffmavqz900vmcwsk8m86u
+      - BTCEXP_FEE_RATE=10
+      - BTCEXP_DONATION_WHITELIST=bc1p72l39k72kq9pmy4a474x0vvsdsaru66ffqmc4lc2dlz8dl9sq30sjh4qnp,bc1pgcm728uy2ywnt65fdlqvgt4r6lqr3s7lth4ulffmavqz900vmcwsk8m86u
+      - BTCEXP_RPC_ALLOWALL=false
+      - BTCEXP_RATE_LIMIT=true
+      - BTCEXP_DEMO=false
+      - BTCEXP_NO_RATES=false
+      - BTCEXP_UI_THEME=dark
+    volumes:
+      - ./data/config:/data/config
+      - ./data/logs:/data/logs
+      - ./public/qrcodes:/data/public/qrcodes
+    restart: unless-stopped
+    networks:
+      - bitcoin-network
+    depends_on:
+      - bitcoind
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  bitcoind:
+    image: bitcoin/bitcoin:25.0
+    container_name: bitcoind
+    command: >
+      bitcoind
+      -server=1
+      -rpcbind=0.0.0.0
+      -rpcallowip=172.16.0.0/12
+      -rpcuser=bitcoin
+      -rpcpassword=${BITCOIND_RPC_PASSWORD:-changeme}
+      -txindex=1
+      -blockfilterindex=1
+      -coinstatsindex=1
+      -prune=0
+      -peerbloomfilters=1
+      -whitelist=127.0.0.1
+      -zmqpubrawblock=tcp://0.0.0.0:28332
+      -zmqpubrawtx=tcp://0.0.0.0:28333
+    volumes:
+      - ./bitcoin-data:/home/bitcoin/.bitcoin
+    ports:
+      - "8332:8332"
+      - "8333:8333"
+      - "28332:28332"
+      - "28333:28333"
+    restart: unless-stopped
+    networks:
+      bitcoin-network:
+        ipv4_address: 172.16.0.2
+
+networks:
+  bitcoin-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.0.0/12
